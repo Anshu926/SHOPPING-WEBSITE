@@ -25,7 +25,10 @@ exports.getStats = async (req, res) => {
       averageRating: avgRating,
     });
   } catch (err) {
-    console.error("Failed to fetch stats", err);
-    res.status(500).json({ message: "Failed to fetch stats" });
+    console.error("List products error:", err);
+    res.status(500).json({
+      error: err.message,
+      stack: process.env.NODE_ENV !== "production" ? err.stack : undefined,
+    });
   }
 };

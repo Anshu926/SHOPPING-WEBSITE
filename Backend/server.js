@@ -111,8 +111,8 @@ async function connectDatabase() {
     await seedAdmin();
     return true;
   } catch (err) {
-    console.error("MongoDB connection error:", err.message);
-    return false;
+    console.error("MongoDB connection error:", err);
+    throw err;
   }
 }
 
@@ -146,7 +146,29 @@ async function startServer() {
   return app;
 }
 
-registerRoutes();
+let routesRegistered = false;
+
+function registerRoutes() {
+  if (routesRegistered) return;
+  routesRegistered = true;
+
+  app.get("/", (req, res) => res.send("AB Fashion API is running ✅"));
+
+  app.use("/customer", customerRoutes);
+  app.use("/seller", sellerRoutes);
+  app.use("/products", productRoutes);
+  app.use("/orders", orderRoutes);
+  app.use("/reviews", reviewRoutes);
+  app.use("/stats", statsRoutes);
+  app.use("/auth", require("./routes/auth"));
+
+  app.use((err, req, res, next) => {
+    console.error(err);
+    res.status(500).json({
+      error: err.message,
+    });
+  });
+}
 
 module.exports = app;
 module.exports.startServer = startServer;

@@ -78,8 +78,11 @@ async function deleteProduct(req, res) {
     await Product.findByIdAndDelete(req.params.id);
     res.json({ message: "Product deleted" });
   } catch (err) {
-    console.error("Delete product error", err);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("List products error:", err);
+    res.status(500).json({
+      error: err.message,
+      stack: process.env.NODE_ENV !== "production" ? err.stack : undefined,
+    });
   }
 }
 
