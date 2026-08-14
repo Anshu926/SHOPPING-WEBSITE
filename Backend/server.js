@@ -1,10 +1,11 @@
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
+
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const session = require("express-session");
-const MongoStore = require("connect-mongo").MongoStore;
+const MongoStore = require("connect-mongo").default;
 const passport = require("passport");
 
 const customerRoutes = require("./routes/customer");
@@ -18,106 +19,101 @@ const configurePassport = require("./config/passport");
 const app = express();
 const port = process.env.PORT || 3000;
 
-/* ── CORS — allow any origin that sends credentials ── */
 const isProd = process.env.NODE_ENV === "production";
 
+/* ---------------- CORS ---------------- */
+
 app.set("trust proxy", 1);
+
 app.use(
   cors({
-    origin: (origin, cb) => cb(null, true),
+    origin: [
+      "https://shopping-website-iunq.vercel.app",
+      "http://localhost:5173",
+    ],
     credentials: true,
   }),
 );
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-/* ── MongoDB URI ── */
+/* ---------------- Mongo ---------------- */
+
 const mongoUri =
   process.env.MONGO_URI || process.env.MONGODB_URI || process.env.DATABASE_URL;
 
-/* ── Sessions — stored in MongoDB so they survive restarts ── */
+/* ---------------- Session ---------------- */
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "dev-secret-change-me",
     resave: false,
     saveUninitialized: false,
-    store: mongoUri
-      ? MongoStore.create({
-          mongoUrl: mongoUri,
-          collectionName: "sessions",
-          ttl: 14 * 24 * 60 * 60,
-        })
-      : undefined,
+    store: MongoStore.create({
+      mongoUrl: mongoUri,
+      collectionName: "sessions",
+      ttl: 14 * 24 * 60 * 60,
+    }),
     cookie: {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? "none" : "lax",
-      maxAge: 14 * 24 * 60 * 60 * 1000,
+      maxAge: 1000 * 60 * 60 * 24 * 14,
     },
   }),
 );
 
+/* ---------------- Passport ---------------- */
+
 app.use(passport.initialize());
 app.use(passport.session());
+
 configurePassport();
+
+/* ---------------- Database ---------------- */
 
 async function seedAdmin() {
   try {
     const Admin = require("./models/Admin");
-    const existing = await Admin.findOne({ email: "admin@shop.com" });
+
+    const existing = await Admin.findOne({
+      email: "admin@shop.com",
+    });
+
     if (!existing) {
       const admin = new Admin({
         email: "admin@shop.com",
         name: "Administrator",
       });
+
       admin.setPassword("password");
+
       await admin.save();
-      console.log("Seeded default admin: admin@shop.com / password");
-    } else {
-      console.log("Default admin already present");
+
+      console.log("Default admin created");
     }
   } catch (err) {
-    console.error("Error seeding admin", err);
+    console.error(err);
   }
 }
 
 async function connectDatabase() {
-  if (!mongoUri) {
-    console.error(
-      "⚠ No MongoDB URI found. Set MONGO_URI in your environment variables.",
-    );
-    return false;
-  }
+  if (mongoose.connection.readyState === 1) return;
 
-  try {
-    if (mongoose.connection.readyState === 1) {
-      return true;
-    }
+  await mongoose.connect(mongoUri);
 
-    const mongooseOptions = {
-      serverSelectionTimeoutMS: 30000,
-      connectTimeoutMS: 30000,
-    };
+  console.log("MongoDB Connected");
 
-    if (
-      mongoUri.startsWith("mongodb+srv://") ||
-      mongoUri.includes("mongodb.net")
-    ) {
-      mongooseOptions.tls = true;
-    }
-
-    await mongoose.connect(mongoUri, mongooseOptions);
-    console.log("✅ MongoDB connected");
-    await seedAdmin();
-    return true;
-  } catch (err) {
-    console.error("MongoDB connection error:", err);
-    throw err;
-  }
+  await seedAdmin();
 }
 
+/* ---------------- Routes ---------------- */
+
 function registerRoutes() {
-  app.get("/", (req, res) => res.send("AB Fashion API is running ✅"));
+  app.get("/", (req, res) => {
+    res.send("AB Fashion API is running ✅");
+  });
 
   app.use("/customer", customerRoutes);
   app.use("/seller", sellerRoutes);
@@ -127,47 +123,39 @@ function registerRoutes() {
   app.use("/stats", statsRoutes);
   app.use("/auth", require("./routes/auth"));
 
-  app.use((err, req, res, next) => {
-    console.error("Unhandled error:", err);
-    res.status(err.status || 500).json({
-      error: err.message || "Internal server error",
+  // DEBUG
+  app.get("/debug-session", (req, res) => {
+    res.json({
+      authenticated: req.isAuthenticated(),
+      sessionID: req.sessionID,
+      user: req.user,
+      session: req.session,
     });
   });
-}
-
-async function startServer() {
-  await connectDatabase();
-  registerRoutes();
-
-  if (require.main === module) {
-    app.listen(port, () => console.log("🚀 Server is running"));
-  }
-
-  return app;
-}
-
-let routesRegistered = false;
-
-function registerRoutes() {
-  if (routesRegistered) return;
-  routesRegistered = true;
-
-  app.get("/", (req, res) => res.send("AB Fashion API is running ✅"));
-
-  app.use("/customer", customerRoutes);
-  app.use("/seller", sellerRoutes);
-  app.use("/products", productRoutes);
-  app.use("/orders", orderRoutes);
-  app.use("/reviews", reviewRoutes);
-  app.use("/stats", statsRoutes);
-  app.use("/auth", require("./routes/auth"));
 
   app.use((err, req, res, next) => {
     console.error(err);
-    res.status(500).json({
-      error: err.message,
+
+    res.status(err.status || 500).json({
+      error: err.message || "Internal Server Error",
     });
   });
+}
+
+/* ---------------- Start ---------------- */
+
+async function startServer() {
+  await connectDatabase();
+
+  registerRoutes();
+
+  if (require.main === module) {
+    app.listen(port, () => {
+      console.log(`Server running on ${port}`);
+    });
+  }
+
+  return app;
 }
 
 module.exports = app;
