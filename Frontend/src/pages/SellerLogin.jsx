@@ -1,9 +1,11 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api";
+import useAuth from "../hooks/useAuth";
 
 export default function SellerLogin() {
   const navigate = useNavigate();
+  const { refreshAuth } = useAuth();
   const [form, setForm] = useState({ username: "", password: "" });
   const [error, setError] = useState(null);
 
@@ -17,6 +19,7 @@ export default function SellerLogin() {
     setError(null);
     try {
       await api.post("/seller/login", form);
+      await refreshAuth();
       navigate("/");
     } catch (err) {
       setError(err?.response?.data?.error || "Login failed");

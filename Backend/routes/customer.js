@@ -24,13 +24,19 @@ router.post("/login", (req, res, next) => {
         console.error("Customer login session error", loginErr);
         return res.status(500).json({ error: "Unable to create session" });
       }
-      const safe = {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        role: "customer",
-      };
-      return res.json({ message: "Logged in", user: safe });
+      req.session.save((saveErr) => {
+        if (saveErr) {
+          console.error("Session save error", saveErr);
+          return res.status(500).json({ error: "Session save failed" });
+        }
+        const safe = {
+          id: user._id,
+          username: user.username,
+          email: user.email,
+          role: "customer",
+        };
+        return res.json({ message: "Logged in", user: safe });
+      });
     });
   })(req, res, next);
 });

@@ -43,5 +43,14 @@ export default function useAuth() {
     }
   };
 
-  return { user, loading, logout };
+  const refreshAuth = async () => {
+    try {
+      const res = await api.get("/auth/status");
+      setUser(res.data?.authenticated ? res.data.user : null);
+    } catch (err) {
+      setUser(null);
+    }
+  };
+
+  return { user, loading, logout, refreshAuth };
 }
