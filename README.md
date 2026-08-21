@@ -9,7 +9,6 @@ AB Fashion provides a modern shopping experience with product browsing, authenti
 **Frontend:**
 
 - **Vercel:** https://project1-eight-gold.vercel.app/
-- **Netlify:** https://6a883d0cc48487832cbf7ea7--shopping-website-2005.netlify.app/
 
 **Backend API:**
 https://project-backend-2urv.onrender.com
